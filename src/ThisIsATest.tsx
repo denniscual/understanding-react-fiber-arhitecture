@@ -6,6 +6,11 @@ export default function ThisIsATest() {
   )
 }
 
+// TODO:
+// - Review this begin work.
+// - Do the completeUnitOfWork and completeWork.
+// - Do the commit phase.
+
 // Fiber architecture.
 // So basically it starts in the creation of the fiber root object which is based on the "passed" container
 // in ReactDOM. This root object handles the "Fiber" tree. Then it creates a root fiber node where the state
@@ -93,8 +98,11 @@ let fiberRootObject: FiberRootObject | null = null
 function workLoopSync(unitOfWork: FiberNode) {
   let workInProgress: MaybeFiberNode = unitOfWork
   while (workInProgress !== null) {
+    // Start of the "render phase".
     workInProgress = performUnitOfWork(workInProgress)
   }
+
+  // Star of the "commit phase".
 }
 
 function performUnitOfWork(unitOfWork: FiberNode): MaybeFiberNode {
@@ -150,13 +158,19 @@ function beginWork(current: MaybeFiberNode, workInProgress: FiberNode) {
           'If the current host root fiber node is "null", then this is likely bug in React.'
         )
 
+      // Map the Root react element, e.g the App, to fiber node and return it.
       return updateHostRoot(current, workInProgress)
     }
     case TFiberNodeTags.HOST_COMPONENT: {
+      // Map its react children to fiber nodes and return its first child
+      // The generated fiber nodes are based on the React children. Means it will copy the information from the react elements to create fiber nods like "props".
+      // So the meaning of "reconcile" in here is to create or clone a fiber nodes based on the React elements and if there is - to its current fiber nodes (workInProgress.alternate).
       return updateHostComponent(current, workInProgress)
     }
     default: {
-      // Default to function component
+      // Map its react children to fiber nodes and return its first child
+      // The generated fiber nodes are based on the React children. Means it will copy the information from the react elements to create fiber nods like "props".
+      // So the meaning of "reconcile" in here is to create or clone a fiber nodes based on the React elements and if there is - to its current fiber nodes (workInProgress.alternate).
       return mountIndeterminateComponent(
         current,
         workInProgress,
@@ -166,6 +180,8 @@ function beginWork(current: MaybeFiberNode, workInProgress: FiberNode) {
   }
 }
 
+// It is named "updateHostRoot" because this function updates its fiber node via the `workInProgress`. All changes must
+// be written in `workInProgress` btw because its the draft state. Sample of the "updates" are setting its child fiber node and add "effect" tag.
 function updateHostRoot(current: FiberNode, workInProgress: FiberNode) {
   workInProgress.memoizedState = {
     // @ts-ignore
@@ -177,6 +193,8 @@ function updateHostRoot(current: FiberNode, workInProgress: FiberNode) {
   return workInProgress.child
 }
 
+// It is named "updateHostComponent" because this function updates its fiber node via the `workInProgress`. All changes must
+// be written in `workInProgress` btw because its the draft state. Sample of the "updates" are setting its child fiber node and add "effect" tag.
 function updateHostComponent(
   current: MaybeFiberNode,
   workInProgress: FiberNode
@@ -214,16 +232,22 @@ function reconcileChildren(
   workInProgress: FiberNode,
   nextChildren: TElement
 ) {
+  // In the react-reconciler, there 2 different child reconcilers, the same logic but one will track if there side-effects, which are ran in here. One is reconciler for update
+  // which "tracks" side-effects. E.g if there are scheduled mutation to the host component.
+  // Another child reconciler will not track the side-effects. This will happen if the `workInProgress` is a fresh fiber node. Meaning that it is not yet rendered on the screen.
   // If this is a fresh new component that hasn't been rendered yet.
-  if (current === null) {
-    workInProgress.child = mountChildFibers(workInProgress, null, nextChildren)
-  } else {
-    workInProgress.child = reconcileChildFibers(
-      workInProgress,
-      null,
-      nextChildren
-    )
-  }
+  // if (current === null) {
+  //   workInProgress.child = mountChildFibers(workInProgress, null, nextChildren)
+  // } else {
+  //   workInProgress.child = reconcileChildFibers(
+  //     workInProgress,
+  //     current.child,
+  //     nextChildren
+  //   )
+  // }
+
+  // In our mock, we will just run the `mountChildFibers` for now because our codes will not support the "updates".
+  workInProgress.child = mountChildFibers(workInProgress, null, nextChildren)
 }
 
 function mountChildFibers(
@@ -243,23 +267,24 @@ function mountChildFibers(
   }
 }
 
-function reconcileChildFibers(
-  returnFiber: FiberNode,
-  currentFirstChild: MaybeFiberNode,
-  newChild: TElement
-) {
-  // If it is a React element.
-  if (typeof newChild === 'object' && newChild !== null) {
-    return reconcileSingleElement(returnFiber, currentFirstChild, newChild)
-  } else if (Array.isArray(newChild)) {
-    return null
-    // return reconcileChildrenArray(returnFiber, currentFirstChild, newChild)
-  } else {
-    // newChild is a direct text child of a Host node. For this text child, we don't need to create a fier node.
-    return null
-  }
-}
+// function reconcileChildFibers(
+//   returnFiber: FiberNode,
+//   currentFirstChild: MaybeFiberNode,
+//   newChild: TElement
+// ) {
+//   // If it is a React element.
+//   if (typeof newChild === 'object' && newChild !== null) {
+//     return reconcileSingleElement(returnFiber, currentFirstChild, newChild)
+//   } else if (Array.isArray(newChild)) {
+//     return null
+//     // return reconcileChildrenArray(returnFiber, currentFirstChild, newChild)
+//   } else {
+//     // newChild is a direct text child of a Host node. For this text child, we don't need to create a fier node.
+//     return null
+//   }
+// }
 
+// Reconcile means creating or cloning a fiber node based on the React element.
 function reconcileSingleElement(
   returnFiber: FiberNode,
   currentFirstChild: MaybeFiberNode,
