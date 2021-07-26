@@ -102,7 +102,7 @@ function workLoopSync(unitOfWork: FiberNode) {
     workInProgress = performUnitOfWork(workInProgress)
   }
 
-  // Star of the "commit phase".
+  // Start of the "commit phase".
 }
 
 function performUnitOfWork(unitOfWork: FiberNode): MaybeFiberNode {
@@ -161,16 +161,23 @@ function beginWork(current: MaybeFiberNode, workInProgress: FiberNode) {
       // Map the Root react element, e.g the App, to fiber node and return it.
       return updateHostRoot(current, workInProgress)
     }
+
+    // Basically, if there is state chagnes in the component and this state is passed to its child component. then it means that before React creates/clone the fiber of the child component of the workInProgress fiber node, it needs to compute
+    // first its "state" then pass the "new" props to the cloned fiber node via its `fiberNode.pendingProps`.
+    // With this, whenever that cloned fiber node is the `workInProgress` handle by `beginWork`, the next props (pendingProps) is already computed. And React will diff this node via its `workInProgress.memoizedProps` and `workInProgress.pendingProps`.
+
     case TFiberNodeTags.HOST_COMPONENT: {
       // Map its react children to fiber nodes and return its first child
       // The generated fiber nodes are based on the React children. Means it will copy the information from the react elements to create fiber nods like "props".
       // So the meaning of "reconcile" in here is to create or clone a fiber nodes based on the React elements and if there is - to its current fiber nodes (workInProgress.alternate).
+      // And these changes are determined by its state and props.
       return updateHostComponent(current, workInProgress)
     }
     default: {
       // Map its react children to fiber nodes and return its first child
       // The generated fiber nodes are based on the React children. Means it will copy the information from the react elements to create fiber nods like "props".
       // So the meaning of "reconcile" in here is to create or clone a fiber nodes based on the React elements and if there is - to its current fiber nodes (workInProgress.alternate).
+      // And these changes are determined by its state and props.
       return mountIndeterminateComponent(
         current,
         workInProgress,
@@ -250,6 +257,8 @@ function reconcileChildren(
   workInProgress.child = mountChildFibers(workInProgress, null, nextChildren)
 }
 
+// This function and `reconcileChildren` are kinda the same. These functions are used for creating/cloning fiber node.
+// One of the difference is that `reconcileChildren` tracks side effects.
 function mountChildFibers(
   returnFiber: FiberNode,
   currentFirstChild: MaybeFiberNode,
@@ -267,6 +276,8 @@ function mountChildFibers(
   }
 }
 
+// This function and `mountChildFibers` are kinda the same. These functions are used for creating/cloning fiber node.
+// One of the difference is that `reconcileChildren` tracks side effects.
 // function reconcileChildFibers(
 //   returnFiber: FiberNode,
 //   currentFirstChild: MaybeFiberNode,
@@ -297,6 +308,14 @@ function reconcileSingleElement(
   return createdFiberNode
 }
 
+function createFiberFromElement(element: TElement) {
+  const type = element.type
+  const key = element.key
+  const pendingProps = element.props
+  const fiber = createFiber(type, pendingProps, key)
+  return fiber
+}
+
 function createHostRootFiber(root: FiberRootObject, element: TElement) {
   const current = createFiber(root)
   current.updateQueue = {
@@ -313,37 +332,6 @@ function createHostRootFiber(root: FiberRootObject, element: TElement) {
   // Point the alternate to `current`.
   workInProgress.alternate = current
   return current
-}
-
-function createFiberFromElement(element: TElement) {
-  const type = element.type
-  const key = element.key
-  const pendingProps = element.props
-  const fiber = createFiberFromTypeAndProps(type, key, pendingProps)
-  return fiber
-}
-
-function createFiberFromTypeAndProps(type: any, key: any, props: any) {
-  let fiberTag = TFiberNodeTags.NONE
-
-  switch (typeof type) {
-    case 'function': {
-      fiberTag = TFiberNodeTags.FUNCTION_COMPONENT
-      break
-    }
-    case 'string': {
-      fiberTag = TFiberNodeTags.HOST_COMPONENT
-      break
-    }
-    default: {
-      fiberTag = TFiberNodeTags.NONE
-    }
-  }
-
-  const fiber = createFiber(type, props, key)
-  fiber.tag = fiberTag
-
-  return fiber
 }
 
 function createFiber(type: TElementType, props: any = null, key?: any) {
