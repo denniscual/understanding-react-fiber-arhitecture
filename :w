@@ -432,6 +432,7 @@ function completeWork(current: MaybeFiberNode, workInProgress: FiberNode) {
       )
       // Append to the `instance` or to the parent its children dom nodes.
       // Skip if the children is "text".
+      debugger
       appendAllChildren(instance, workInProgress)
       // Setting the dom properties based on the new props.
       finalizeInitialChildren(instance, type, newProps)
