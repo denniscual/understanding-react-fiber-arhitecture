@@ -7,7 +7,7 @@ export default function ThisIsATest() {
 }
 
 // TODO:
-// - Review this begin work.
+// - We need to support children for fiber nodes. Right now, are algorithm only works for fiber which has only 1 child.
 // - Do the completeUnitOfWork and completeWork.
 // - Do the commit phase.
 
@@ -93,30 +93,32 @@ class FiberRootObject {
   current: MaybeFiberNode = null
 }
 
-let fiberRootObject: FiberRootObject | null = null
+let $fiberRootObject: FiberRootObject | null = null
+let $workInProgress: MaybeFiberNode = null
+let $rootContainer: HTMLElement | null = null
 
 function workLoopSync(unitOfWork: FiberNode) {
-  let workInProgress: MaybeFiberNode = unitOfWork
-  while (workInProgress !== null) {
+  $workInProgress = unitOfWork
+  while ($workInProgress !== null) {
     // Start of the "render phase".
-    workInProgress = performUnitOfWork(workInProgress)
+    $workInProgress = performUnitOfWork($workInProgress)
   }
 
   // Start of the "commit phase".
+  // `unitOfWork` here is the host root.
 }
 
-function performUnitOfWork(unitOfWork: FiberNode): MaybeFiberNode {
+function performUnitOfWork(unitOfWork: FiberNode) {
   const current = unitOfWork.alternate
+  console.log('begin work', unitOfWork)
   let nextUnitOfWork: MaybeFiberNode = beginWork(current, unitOfWork)
-
   // Assign the new props of the unitOfWork to its memoizedProps if all `beginWork` works are done.
   // This new props will be the props of the fiber node to the next current state of the app.
   unitOfWork.memoizedProps = unitOfWork.pendingProps
 
   if (nextUnitOfWork === null) {
-    // Call the completeUnitOfWork
+    completeUnitOfWork(unitOfWork)
   }
-
   return nextUnitOfWork
 }
 
@@ -349,12 +351,59 @@ function createFiber(type: TElementType, props: any = null, key?: any) {
   return fiberNode
 }
 
-function completeUnitOfWork() {
-  // returns or assign the nextUnitOfWork via `sibling`. If the `completedWork` doesnt have `child`, then set
-  // the completeWork and workInProgress to the returnFiber/parent of the `completeWork`.
+function completeUnitOfWork(unitOfWork: FiberNode) {
+  // Attempt to complete the current unit of work, then move to the next
+  // sibling. If there are no more siblings, return to the parent fiber.
+  let completedWork: MaybeFiberNode = unitOfWork
+  do {
+    // The current, flushed, state of this fiber is the alternate. Ideally
+    // nothing should rely on this, but relying on it here means that we don't
+    // need an additional field on the work in progress.
+    const current = completedWork.alternate
+    const returnFiber: MaybeFiberNode = completedWork.return // Check if the work completed or if something threw.
+    completeWork(current, completedWork)
+    const siblingFiber = completedWork.sibling
+    if (siblingFiber !== null) {
+      // If there is more work to do in this returnFiber, do that next.
+      return siblingFiber
+    }
+    // Otherwise, return to the parent
+    completedWork = returnFiber // Update the next thing we're working on in case something throws.
+    $workInProgress = completedWork
+  } while (completedWork !== null) // We've reached the root.
+
+  // After the loop, the $workInProgress is already null. There is no `unitOfWork` for "render phase" because we already reached the loop, then React
+  // can prepare the Fiber tree for "commit phase".
 }
 
-function completeWork() {
+function completeWork(current: MaybeFiberNode, workInProgress: FiberNode) {
+  console.log('complete work', workInProgress)
+  switch (workInProgress.tag) {
+    case TFiberNodeTags.HOST_ROOT: {
+      return null
+    }
+    case TFiberNodeTags.HOST_COMPONENT: {
+      const type = workInProgress.type
+      const newProps = workInProgress.pendingProps
+      const rootContainerInstance = getRootHostContainer()
+
+      // For now, our mock only supports the "initial render". In the future maybe, we will also support the "re-render".
+      // So because it only supports "initial render", then immediately create a host instance.
+      const instance = createInstance(
+        type,
+        newProps,
+        rootContainerInstance as HTMLElement
+      )
+      appendAllChildren(instance, workInProgress)
+      workInProgress.stateNode = instance
+
+      break
+    }
+    default: {
+      return null
+    }
+  }
+
   // Do a switch for the workInProgress.tag
   // If tag is HOST_COMPONENT, then create dom element with the pendingProps. And because the children of
   // the workInProgress is already been created, children is created first before its parent, then
@@ -362,14 +411,51 @@ function completeWork() {
   // because those are already appended to the children dom elements.
 }
 
+function createInstance(
+  type: any,
+  props: any,
+  rootContainerInstance: HTMLElement
+) {
+  // Its good to validate the `DOM` nesting of the nodes before creating dom nodes.
+  const domElement = createElement(type, props, rootContainerInstance)
+  return domElement
+}
+
+function createElement(
+  type: any,
+  props: any,
+  rootContainerInstance: HTMLElement
+) {
+  const ownerDocument = getOwnerDocumentFromRootContainer(rootContainerInstance)
+  const element = ownerDocument.createElement(type)
+  return element
+}
+
+function getOwnerDocumentFromRootContainer(
+  rootContainerElement: Node
+): Document {
+  // If the root container is the `ownerDocument`, then return it. Else, return its `ownerDocument`.
+  return rootContainerElement.nodeType === 9
+    ? (rootContainerElement as Document)
+    : (rootContainerElement.ownerDocument as Document)
+}
+
+function getRootHostContainer() {
+  return $rootContainer
+}
+
+// TODO: Appends its children dom nodes to the parent dom node.
+function appendAllChildren(parent: HTMLElement, workInProgress: FiberNode) {}
+
 render(jsx(App), document.createElement('div'))
 
 function render(element: TElement, container: HTMLElement) {
   const root = new FiberRootObject()
   root.current = createHostRootFiber(root, element)
-  fiberRootObject = root
+  $fiberRootObject = root
+  $rootContainer = container
 
-  const workInProgress = fiberRootObject.current?.alternate
+  const workInProgress = $fiberRootObject.current?.alternate
   // Invoking `workLoopSync` will start the "render" phase.
   workLoopSync(workInProgress as FiberNode)
 
