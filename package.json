@@ -1,5 +1,5 @@
 {
-  "name": "scheduling-demo",
+  "name": "understading-react-fiber-architecture",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
@@ -13,10 +13,7 @@
     "react": "^18.0.0-alpha-81346764b-20210714",
     "react-dom": "^18.0.0-alpha-81346764b-20210714",
     "react-scripts": "4.0.1",
-    "styled-components": "^5.2.1",
-    "styled-reset": "^4.3.1",
-    "typescript": "^4.1.2",
-    "web-vitals": "^0.2.4"
+    "typescript": "^4.1.2"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -43,11 +40,6 @@
     ]
   },
   "devDependencies": {
-    "@craco/craco": "^5.9.0",
-    "@types/styled-components": "^5.1.4",
-    "autoprefixer": "^9",
-    "postcss": "^7",
-    "prettier": "^2.2.1",
-    "tailwindcss": "npm:@tailwindcss/postcss7-compat"
+    "prettier": "^2.2.1"
   }
 }
