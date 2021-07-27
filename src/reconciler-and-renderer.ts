@@ -1,56 +1,62 @@
 import isUnitLessNumber from './isUnitLessNumber'
 import registerEvents from './registerEvents'
 
-export default function ThisIsATest() {
-  return (
-    <div>
-      <span onClick={() => {}} onKeyUp={() => {}}>
-        Hello world
-      </span>
-    </div>
-  )
-}
+/**
+ * TODO:
+ *
+ *  - We need to support children for fiber nodes. Right now, are algorithm only works for fiber which has only 1 child.
+ *  - Do the commit phase.
+ *  - In render phase, its also good to show how reconciles the fiber nodes based on "state" or "props" updates.
+ *  - Support effect list.
+ *
+ *
+ * NOTE:
+ *
+ * The information below are far in complete and there is possibility that some of the written comments
+ * are incorrect. And also this doesnt demonstrate the totality of the React. I skipped lots of logic and only includes
+ * the supported "functionality". For now, I only include the logic behind "initial mount" of the App.
+ * I also want to point out, in React 18, it already support some "concurrent features". Because of this, react-reconciler
+ * uses 2 approaches for "rendering" the app. The "Sync" and "Async" approaches. Below codes are only for "Sync".
+ *
+ *
+ * ARTICLES (Some gist included in the articles are outdated but the whole content can really help you understands
+ *
+ * the main concept of Fiber tree.):
+ * - https://github.com/acdlite/react-fiber-architecture
+ * - https://indepth.dev/posts/1008/inside-fiber-in-depth-overview-of-the-new-reconciliation-algorithm-in-react
+ * - https://indepth.dev/posts/1009/in-depth-explanation-of-state-and-props-update-in-react
+ * - https://indepth.dev/posts/1007/the-how-and-why-on-reacts-usage-of-linked-list-in-fiber-to-walk-the-components-tree
+ * - https://indepth.dev/posts/1064/what-every-front-end-developer-should-know-about-change-detection-in-angular-and-react
+ *
+ * FIBER ARCHITECTURE:
+ *
+ * So basically it starts in the creation of the fiber root object which is based on the "passed" container
+ * in ReactDOM. This root object handles the "Fiber" tree. Then it creates a root fiber node where the state
+ * node is pointing back to the fiber root object.
+ *
+ * There are 2 phases.
+ * - Render phase
+ * - Commit phase
+ *
+ * Render phase:
+ * In the begin work, it updates the element (creating fiber instance or cloning fiber). Im thinking for updating
+ * host node element, result of reconciling, the host node updates information are included in the effect list.
+ * And in commit phase React performs the actual DOM mutation.
+ * And then in the complete work, this is the place where React append the DOM nodes. First it creates the DOM node
+ * for every child. Then creates the parent and append the children to this parent DOM node based on the `workInProgress` children.
+ * It uses the same traversal for appending children dom nodes to the parent. Its the "Singly linked-list" traversal.
+ *
+ * Commit phase:
+ * In commit phase, especially commitMutationEffects, the appending of the App DOM tree is happening in here.
+ * So React will append the App DOM tree to the root container which "schedules" a "yield".
+ *
+ * */
 
-// TODO:
-// - We need to support children for fiber nodes. Right now, are algorithm only works for fiber which has only 1 child.
-// - Do the commit phase.
-
-// Fiber architecture.
-// So basically it starts in the creation of the fiber root object which is based on the "passed" container
-// in ReactDOM. This root object handles the "Fiber" tree. Then it creates a root fiber node where the state
-// node is pointing back to the fiber root object.
-//
-// There are 2 phases.
-// - Render phase
-// - Commit phase
-//
-// In the begin work, it updates the element. But im thinking this updates are wrapped to a update function
-// which will run in the "commit phase".
-//
-// And then in the complete work work, this is the place where React append the DOM nodes. First it creates the DOM node for every child. Then creates the parent and append the children to this parent DOM node based on the `workInProgress` children.
-// It uses the same traversal for appending children dom nodes to the parent. Its the "Singly linked-list" traversal.
-//
-// In commit phase, especially commitMutationEffects, the appending of the App DOM tree is happening in here.
-// So React will append the App DOM tree to the root container which "schedules" a "yield".
-
-// First create fiber root object and create fiber node on top of this.
-// Then this fiber node will be `current` of the fiber root ojbect.
-// Then create a work in progress node based on current. Just copy the `current` but we need to make sure
-// these 2 fiber nodes are referential different. When creating a current/work in progress for host root,
-// the fiber node has `updateQueue` which holds the app root react element (E.g the app).
-// Simple representation of the work in progress node of the host root.
-// It has `updateQueue` which holds the Root react element (App) on its baseState field.
-// Then create a fiber node based on the App react element. Set the `return` field to the host root.
-// And for host root, set its child field to the APp fiber node. Then this `child` is the returned fiber node
-// of the beginWork for the hostRoot.
-// Then continue the same algorithm for App and so on and so forth.
-//
-//
-// In completeWork, this is the function in render phase where React appends the children to its parent if the
-// the workInProgress fiber node is a HOST_COMPONENT. Check createInstance function. If not, then completeWork immediately returns null. Basically what i know is that
-// in completeWork, React also add the effectTag of the fiber node based on the changes.
-//
-// NOTE: For function component, we don't need to assign a stateNode.
+// ----------------------------------------------------------- //
+// ----------------------------------------------------------- //
+// Reconciler
+// ----------------------------------------------------------- //
+// ----------------------------------------------------------- //
 
 type TElementType = any
 interface TElement {
@@ -145,6 +151,58 @@ function workLoopSync(unitOfWork: FiberNode) {
   }
 }
 
+/**
+ * Traversal algorithm for fiber data structure.
+ * E.g React elements tree
+ *                                App
+ *                              /  |  \
+ *                             /   |   \
+ *                            /    |    \
+ *                           /     |     \
+ *                        Header  Main   Footer
+ *                           |     |      |
+ *                           |     |      |
+ *                         header main   footer
+ *                           |     |      |
+ *                           |     |      |
+ *                           h1    p      p
+ *                           |     |      |
+ *                           |     |      |
+ *                        "text" "text" "text"
+ *
+ *
+ *
+ * Fiber algorithm will connect the React elements using "Singly-linkedlist approach".
+ * Below is the resulting fiber tree:
+ *
+ * HostRoot --> App --> Header --> header --> h1 "This is the header"
+ *                      |
+ *                      |
+ *                      V
+ *                      Main --> p --> "This is the main section"
+ *                      |
+ *                      |
+ *                      V
+ *                      Footer --> footer --> p --> "This is the footer"
+ *
+ *
+ * Its a "depth-first-search" traversal but because the nodes are linked, then it doesnt need to use
+ * "recursion" to traverse the tree, "iterative" approach can suffice without any space requirements.
+ * The main reason why React traverses the fiber tree in this way to customise the "call stack" and
+ * avoid depending to the "built-in" callstack. We can think "Fiber" as a enhance and customised "stack frame".
+ *
+ * Note from Andrew clark about Fiber architecture (https://github.com/acdlite/react-fiber-architecture):
+ *
+ * "The advantage reimplementing the stack is that you can keep stack frames in memory and execute them however
+ * (and whenever) you want. This is crucial for accomplishing the goals we have for scheduling.
+ * Aside from scheduling, manually dealing with stack frames unlocks the potential for features such as
+ * concurrency and error boundaries. We will cover these topics in future sections"
+ *
+ * The traversal will happen in "render" phase. Whenever React performs a "work" in a current node,
+ * it calls the `beginWork` for the currrent node. And later on, whenever React finishes the "works"
+ * for its `children` nodes, then it calls the "completeWork". "Works" included in "completeWork" is
+ * appending the children to the current `workInProgress`.
+ * */
 function performUnitOfWork(unitOfWork: FiberNode) {
   const current = unitOfWork.alternate
 
@@ -432,7 +490,6 @@ function completeWork(current: MaybeFiberNode, workInProgress: FiberNode) {
       )
       // Append to the `instance` or to the parent its children dom nodes.
       // Skip if the children is "text".
-      debugger
       appendAllChildren(instance, workInProgress)
       // Setting the dom properties based on the new props.
       finalizeInitialChildren(instance, type, newProps)
@@ -471,7 +528,11 @@ function createElement(
   return element
 }
 
-// TODO: Review this function.
+// This is the time when the children is appended to its shared parent. This would work because
+// children host nodes are already created before the parent.
+// Basically in fiber, the flow of `completeWork` is botttom to top. And the appendAllChildren is included to the
+// `completeWork`. Because React handles the leaf nodes first, then their state nodes, host nodes, are created first
+// before parent. It means we can safely assume that at this point for parent, the children dom nodes are already created.
 function appendAllChildren(parent: HTMLElement, workInProgress: FiberNode) {
   // Note that the children dome nodes of the workInProgress are already created or whenever React handles the parent
   // node, the children nodes are already created.
@@ -488,19 +549,13 @@ function appendAllChildren(parent: HTMLElement, workInProgress: FiberNode) {
       return
     }
 
-    // If the node doesnt have sibling.
-    while (node?.sibling === null) {
-      // Get back to the parent
-      node = node.return
+    // If node doesnt have sibling, then it means theres no children to append to the parent. Exit function.
+    if (node.sibling == null) {
+      return
     }
 
-    if (node) {
-      // If the node has sibling.
-      // Then set the parent of sibling of node to its same parent. Of course :)
-      node.sibling.return = node.return
-      // Then iterate again against the sibling of the current node.
-      node = node.sibling
-    }
+    node.sibling.return = node.return
+    node = node.sibling
   }
 }
 
@@ -615,9 +670,13 @@ function getRootHostContainer() {
   return $rootContainer
 }
 
-render(jsx(App), document.getElementById('test') as HTMLElement)
+// ----------------------------------------------------------- //
+// ----------------------------------------------------------- //
+// DOM renderer and jsx
+// ----------------------------------------------------------- //
+// ----------------------------------------------------------- //
 
-function render(element: TElement, container: HTMLElement) {
+export function render(element: TElement, container: HTMLElement) {
   const root = new FiberRootObject()
   root.current = createHostRootFiber(root, element)
   $fiberRootObject = root
@@ -630,30 +689,11 @@ function render(element: TElement, container: HTMLElement) {
   // After "render" phase, React will start the "commit" phase.
 }
 
-function App() {
-  return jsx(Test)
-}
-
-function Test() {
-  return jsx(
-    'div',
-    {},
-    jsx(
-      'span',
-      {
-        style: {
-          color: 'red',
-        },
-        onClick() {
-          console.log('Im a span')
-        },
-      },
-      'Click me'
-    )
-  )
-}
-
-function jsx(type: any, props: any = {}, children: any = null): TElement {
+export function jsx(
+  type: any,
+  props: any = {},
+  children: any = null
+): TElement {
   let elementProps: any = {}
   elementProps = {
     ...props,
